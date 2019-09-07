@@ -23,3 +23,9 @@ class MeasurementError(RuntimeError):
     """Something bad happened!"""
 
     pass
+
+class EpicsException(RuntimeError):
+
+    """Some form of epics problem."""
+
+    pass

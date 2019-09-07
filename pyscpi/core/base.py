@@ -9,9 +9,14 @@ Created on Thu Aug 29 22:21:11 2019
 """
 __all__ = ["SCPI_Path_Dict", "Param", "SCPI_Instrument_Mixin"]
 
-from collections import MutableMapping, OrderedDict
+import numpy as np
+import re
+from collections import MutableMapping, OrderedDict,Iterable,Mapping
+from os import path
+
 
 from ..exceptions import CommandError
+from pyscpi.measurements.base import EpisMeasurementMixin
 
 
 class SCPI_Path_Dict(MutableMapping):
@@ -23,21 +28,21 @@ class SCPI_Path_Dict(MutableMapping):
 
     All name lookups are passed through a functional that understands the partial matching rules of SCPI"""
 
-    def __init__(sellf, *args, **kargs):
+    def __init__(self, *args, **kargs):
         """Create the actual dictionary store we use and then init it."""
 
         self._store = OrderedDict(*args)
 
-    def __delitem__(name):
+    def __delitem__(self,name):
         """Delete an item from the dictionary."""
         name = self.canonical(name)
         del self._store[name]
 
-    def __setitem__(name, value):
+    def __setitem__(self,name, value):
         """Set an item into the dictionary."""
         try:
             name = self.canonical(name)
-        except Keyr:
+        except KeyError:
             name = name.upper()  # Force upper case names
         self._store[name] = value
 
@@ -62,10 +67,21 @@ class SCPI_Path_Dict(MutableMapping):
             return False
         return True
 
+    def keys(self):
+        return self._store.keys()
+
+    def values(self):
+        return self._store.values()
+
+    def items(self):
+        return self._store.items()
+
     def canonical(self, name):
         name = name.upper()
-        if super(SCPI_Path_Dict, self).__contains__(name):
-            return name
+        try:
+            return super(SCPI_Path_Dict, self).__getitem__(name)
+        except KeyError:
+            pass
         for n in self.keys():
             if name.startswith(n):
                 return n
@@ -185,7 +201,7 @@ class SCPI_Instrument_Mixin(object):
         full_path = name
         tree = full_path.replace(path.sep, ":")
         canonical = []
-        cmd_dict = self.commands
+        cmd_dict = self._commands
         for part in tree.split(":"):
             if part not in cmd_dict:
                 raise AttributeError(
@@ -239,7 +255,7 @@ class SCPI_Instrument_Mixin(object):
             return ret
 
 
-class _proxy(object):
+class _proxy(EpisMeasurementMixin):
 
     """Proxy attribute access to build SCPI commands."""
 
@@ -252,7 +268,7 @@ class _proxy(object):
         """Locate the current path in the command dictionary."""
         full_path = path.join(self._path, name)
         tree = full_path.replace(path.sep, ":")
-        cmd_dict = self._instr.commands
+        cmd_dict = self._instr._commands
         canonical = []
         for part in tree.split(":"):
             if part not in cmd_dict:
@@ -288,7 +304,7 @@ class _proxy(object):
 
     def __setattr__(self, name, value):
         """Set a SCIPI Command."""
-        if name.startswith("_") and name != "_":
+        if name in ["commands","debug"] or (name.startswith("_") and name != "_"):
             super(_proxy, self).__setattr__(name, value)
             return None
         try:
@@ -306,3 +322,4 @@ class _proxy(object):
                 )
             )
         self._instr.write(cmd_dict.format_write(tree, value))
+

@@ -45,7 +45,7 @@ class InstrumentComms(object):
 
     This just defines the interface routines that all communications layers should support."""
 
-    def __init__(*args, **kargs):
+    def __init__(self,*args, **kargs):
 
         self._wait = kargs.pop("wait", 0.5)
         self.debug = kargs.pop("debug", False)
@@ -95,11 +95,11 @@ class GPIBInstrument(InstrumentComms):
 
     """Wrapper around visa for GPIB instrument."""
 
-    def __init__(self, rm=None, instr="GPIB0::16::INSTR", **kargs):
+    def __init__(self, rm=None, instr='GPIB0::11::INSTR', **kargs):
         if rm is None:
             global _global_rm
-            if _global_rm is Noine:
-                _global_rm = initGPIBInstrument()
+            if _global_rm is None:
+                _global_rm = initResourceManager()
             rm = _global_rm
 
         self._instr = initGPIBInstrument(rm, instr)

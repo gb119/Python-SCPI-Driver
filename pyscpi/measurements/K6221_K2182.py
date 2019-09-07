@@ -7,14 +7,16 @@ Author: Gavin Burnell, University of Leeds, g.burnell@leeds.ac.uk.
 """
 from __future__ import print_function
 
-import epics
 import time
+import visa
 import numpy as np
 
-from ..instr.keithley import K2182A, K6221
+from pyscpi.instr.keithley import K2182A, K6221
+from pyscpi.measurements.base import MeasurementBase, EpisMeasurementMixin
+from pyscpi.exceptions import MeasurementError
 
 
-class Measurement(object):
+class Measurement(EpisMeasurementMixin,MeasurementBase):
 
     """Setup a Resitance measurement."""
 
@@ -27,26 +29,13 @@ class Measurement(object):
         self.amplitude = kargs.pop("amplitude", 1e-7)
         self.delay = kargs.pop("delay", 0.2)
         self.compliance = kargs.pop("compliance", 0.1)
-        self.flag = "X07DA-XTR-LOCKIN:MEASFLAG"
+        self._flag = "X07DA-XTR-LOCKIN:MEASFLAG"
         self.prefix = kargs.pop("prefix", "X07DA-XTR-LOCKIN:{}")
         self.poll_time = kargs.pop("poll_time", 1.0)
         self.mock = kargs.pop("mock", False)
         debug = kargs.pop("debug", False)
         self.k6221.debug = debug
         self.k2182.debug = debug
-
-    def post(self, results):
-        """Scan the results dictionary for floats and post them on corresponding epics channels."""
-        for k, v in results.items():
-            if isinstance(v, float):
-                epics.caput(self.prefix.format(k), float(v))
-        epics.caput(self.flag, 0)
-
-    def wait_flag(self):
-        """Wait for the epics flag to go high before releasing."""
-        while epics.caget(self.flag) == 0:
-            time.sleep(self.poll_time)
-        return True  # should we return false for a tiemout? Should I have a timeout?
 
     def main_loop(self):
         """Execute a connect, confogure and then enter a loop waiting to do measurements."""
@@ -61,7 +50,7 @@ class Measurement(object):
             try:
                 results = self.measure_delta()
             except visa.VisaIOError:
-                epics.caput(self.flag, -1)
+                self.flag=-1
                 print("Aborting measurement due to VISA errors")
                 break
             print("Results\n*******")
@@ -231,18 +220,8 @@ class Measurement(object):
             raise err
         return ret
 
+    def stop(self):
+        self.turn_off()
+
     def turn_off(self):
-        k6221.outp.stat = False
-
-
-if __name__ == "__main__":
-    try:
-        M = Measurement(
-            mock=False, amplitude=1e-5, repeats=200, debug=True, delay=0.02
-        )  # Mock mode stops us talking epics
-        M.main_loop()
-    except KeyboardInterrupt:
-        M.k6221.sour.cle.imm
-        M.k6221.reset()
-        M.k6221.close()  # Make sure we kill that telnet connection
-        print("Finished Measuring")
+        self.k6221.outp.stat = False
